@@ -16,7 +16,7 @@
  * 3 dla linii 12-15 (Rejestr EXTICR4)
 */
 
-static void EXTI_lineConfig(GPIOPortE EXTI_PortSourceGPIOx, uint8_t EXTI_PinSourcex)
+/* static void EXTI_lineConfig(GPIOPortE EXTI_PortSourceGPIOx, uint8_t EXTI_PinSourcex)
 {
   if(RCC_APB2ENR_SYSCFGEN != (RCC->APB2ENR & RCC_APB2ENR_SYSCFGEN))
   {
@@ -36,7 +36,7 @@ void EXTI0_IRQHandler(void)
   {
      USART_sendCharacter('a');
   }
-}
+} */
 
 int main(void)
 {
@@ -44,11 +44,10 @@ int main(void)
   GPIO_clock(B);
   GPIO_setupPin(GPIOB, 7, GPIO_Alternate, GPIO_Output_PP,
   GPIO_PULL_NO, GPIO_Speed_50MHz);
-    GPIO_setupPin(GPIOB, 6, GPIO_Alternate, GPIO_Output_PP,
+  GPIO_setupPin(GPIOB, 6, GPIO_Alternate, GPIO_Output_PP,
   GPIO_PULL_NO, GPIO_Speed_50MHz);
   GPIO_AFConfig(GPIOB, 6, GPIO_AF_USART1);
   GPIO_AFConfig(GPIOB, 7, GPIO_AF_USART1);
-
   USART_setupIrqAll(USART1, 84000000UL, 9600);
   // NVIC_EnableIRQ(EXTI0_IRQn);
   // RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
