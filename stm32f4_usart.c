@@ -3,15 +3,15 @@
 
 void USART1_IRQHandler()
 {
-  if(USART1->SR & USART_SR_RXNE)
+/*  if(USART1->SR & USART_SR_RXNE)
   {
     char data = USART1->DR;
     writeToCircBuff(&rxTxQueue, data);
-  }
+  } */
   /* If buffer is empty and interrupt has been turn on */
   if((USART1->SR & USART_SR_TXE) && (USART1->CR1 & USART_CR1_TXEIE))
   {
-    USART_sendString(rxTxQueue.bufferArr);
+    USART_sendString(&USART_buffer[0]);
     USART1->CR1 &= ~USART_CR1_TXEIE;
   }
 }
@@ -107,19 +107,6 @@ void USART_setupIrqAll(USART_TypeDef *USARTx, u32 clockApbFreq, u32 baudRate)
   else
   {
     //Put error handling here
-  }
-}
-
-void writeToCircBuff(volatile circularBufferS* circBuff, char elem)
-{
-  circBuff->bufferArr[circBuff->currIdx] = elem;
-  circBuff->currIdx++;
-  if(circBuff->currIdx > CIRC_BUFF_SIZE_WORDS - 2)
-  {
-    circBuff->bufferArr[CIRC_BUFF_SIZE_WORDS - 1] = '\0';
-    circBuff->currIdx = circBuff->startPhraseIdx;
-    /* If we reach end of buffer - TURN ON TXE INTERRUPT */
-    USART1->CR1 |= USART_CR1_TXEIE;
   }
 }
 
