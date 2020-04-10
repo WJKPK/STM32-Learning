@@ -252,6 +252,10 @@ typedef int32_t  s32;
 typedef int16_t s16;
 typedef int8_t  s8;
 
+typedef uint32_t BOOL;
+#define FALSE 0U
+#define TRUE 1U
+
 typedef const int32_t sc32;  /*!< Read Only */
 typedef const int16_t sc16;  /*!< Read Only */
 typedef const int8_t sc8;   /*!< Read Only */
@@ -3091,8 +3095,8 @@ typedef struct
 #define DMA_SxCR_PINC                        ((uint32_t)0x00000200)
 #define DMA_SxCR_CIRC                        ((uint32_t)0x00000100)
 #define DMA_SxCR_DIR                         ((uint32_t)0x000000C0)
-#define DMA_SxCR_DIR_0                       ((uint32_t)0x00000040)
-#define DMA_SxCR_DIR_1                       ((uint32_t)0x00000080)
+#define DMA_SxCR_DIR_MP                      ((uint32_t)0x00000040)
+#define DMA_SxCR_DIR_MM                      ((uint32_t)0x00000080)
 #define DMA_SxCR_PFCTRL                      ((uint32_t)0x00000020)
 #define DMA_SxCR_TCIE                        ((uint32_t)0x00000010)
 #define DMA_SxCR_HTIE                        ((uint32_t)0x00000008)

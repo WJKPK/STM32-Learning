@@ -3,7 +3,7 @@
 STLINK=st-flash
 
 # Put your source files here (or *.c, etc)
-SRCS=main.c system_stm32f4xx.c stm32f4_gpio.c stm32f4_usart.c
+SRCS=main.c system_stm32f4xx.c stm32f4_gpio.c stm32f4_usart.c stm32f4_dma.c
 
 # Binaries will be generated with this name (.elf, .bin, .hex, etc)
 PROJ_NAME=test

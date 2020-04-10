@@ -1,20 +1,21 @@
 #include<stm32f4xx.h>
 #include"stm32f4_usart.h"
 
-void USART1_IRQHandler()
-{
-/*  if(USART1->SR & USART_SR_RXNE)
-  {
-    char data = USART1->DR;
-    writeToCircBuff(&rxTxQueue, data);
-  } */
+/*
+ * USART1 Interrupt handler function
+ * If USART1 status register is set and interrupt is present
+ * sending sting from selected buffer and clear interrupt flag
+ * */
+
+//void USART1_IRQHandler()
+//{
   /* If buffer is empty and interrupt has been turn on */
-  if((USART1->SR & USART_SR_TXE) && (USART1->CR1 & USART_CR1_TXEIE))
-  {
-    USART_sendString(&USART_buffer[0]);
+//  if((USART1->SR & USART_SR_TXE) && (USART1->CR1 & USART_CR1_TXEIE))
+/*  {
+    USART_sendString(USART1, &USART_buffer[0]);
     USART1->CR1 &= ~USART_CR1_TXEIE;
   }
-}
+}*/
 
 static u16 USART_baudRateCalc(USART_TypeDef* USARTx, u32 APBfrequency, u32 baudRate)
  {
@@ -56,15 +57,17 @@ static void USART_initIrqCommon(USART_TypeDef *USARTx, u32 clockApbFreq, u32 bau
   USARTx->CR1 |= (USART_CR1_TE | USART_CR1_RE);
   USARTx->BRR = USART_baudRateCalc(USARTx, clockApbFreq, baudRate);
   USARTx->CR1 |= USART_CR1_UE;
-  /* Set RX interrupt ON */
-  USARTx->CR1 |= USART_CR1_RXNEIE;
+  //USARTx->CR1 |= USART_CR1_RXNEIE; // turn on RX when DMA not supported
+  USARTx->CR3 |= USART_CR3_DMAR; //support UART RX with DMA
+  USARTx->CR3 |= USART_CR3_DMAT;
 }
 
-/*
- *
- *
- *
-*/
+/* Function initialize USART/UART pheripherial. Default with DMA support to TX/RX data.
+ * Input parameters:
+ * > USARTx: pointer to USARTx x=(1..6)
+ * > clockApbFreq: frequency of APB bus in Hz.
+ * > baudRate in bps typical values: (1200, 2400, 4800, 9600, 19200, 38400, 57600, and 115200)
+ * */
 
 void USART_setupIrqAll(USART_TypeDef *USARTx, u32 clockApbFreq, u32 baudRate)
 {
@@ -110,20 +113,27 @@ void USART_setupIrqAll(USART_TypeDef *USARTx, u32 clockApbFreq, u32 baudRate)
   }
 }
 
-void USART_sendCharacter(volatile char Ascii)
+/*
+ * Send single character by USART
+ * */
+
+void USART_sendCharacter(USART_TypeDef *USARTx, volatile char Ascii)
 {
     USART1->DR = Ascii;
-      while(!(USART1->SR & USART_SR_TXE))
+      while(!(USARTx->SR & USART_SR_TXE))
   {
     ;//check if transmission is complete
   }
 }
 
-void USART_sendString(volatile char* AsciiString)
+/*
+ * Send string of characters by USART
+ * */
+void USART_sendString(USART_TypeDef *USARTx, volatile char* AsciiString)
 {
   while(*AsciiString)
   {
-    USART_sendCharacter(*AsciiString);
+    USART_sendCharacter(USARTx, *AsciiString);
     AsciiString++;
   }
 }

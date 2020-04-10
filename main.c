@@ -1,5 +1,6 @@
 #include"stm32f4_gpio.h"
 #include"stm32f4_usart.h"
+#include"stm32f4_dma.h"
 
 #define BOOL u32
 #define FALSE 0U
@@ -42,14 +43,23 @@ void EXTI0_IRQHandler(void)
 
 void DMA2_Stream2_IRQHandler(void)
 {
-	/* transmission complete interrupt */
-	if (DMA2->LISR & DMA_LISR_TCIF2)
-	{
-        USART_buffer[CIRC_BUFF_SIZE_WORDS - 1] = '\0';
-        DMA2->LIFCR = DMA_LIFCR_CTCIF2;  // acknowledge interrupt
-        USART1->CR1 |= USART_CR1_TXEIE; //set USART TX flag to send data via USART1 TX
-
-	}
+  /* transmission complete interrupt */
+  if (DMA2->LISR & DMA_LISR_TCIF2)
+  {
+    USART_buffer[CIRC_BUFF_SIZE_WORDS - 1] = '\0';
+    DMA2->LIFCR = DMA_LIFCR_CTCIF2;  // acknowledge interrupt
+    DMA2_Stream7->CR |= DMA_SxCR_EN; //enable DMA2_Stream7
+    //USART1->CR1 |= USART_CR1_TXEIE; //set USART TX flag to send data via USART1 TX
+  }
+}
+void DMA2_Stream7_IRQHandler(void) /* */
+{
+  if (DMA2->HISR & DMA_HISR_TCIF7)
+  {
+    DMA2->HIFCR = DMA_HIFCR_CTCIF7;  // acknowledge interrupt
+	DMA2_Stream7->CR &= ~DMA_SxCR_EN; //disable DMA2_Stream7 to prevent
+	//constantly sending characters by USART
+  }
 }
 
 int main(void)
@@ -64,23 +74,7 @@ int main(void)
   GPIO_AFConfig(GPIOB, 7, GPIO_AF_USART1);
   USART_setupIrqAll(USART1, 84000000UL, 9600);
   /* DMA2 Steam 2 (for USART1 RX) & 7 (for USART1 TX) */
-  while(DMA2_Stream2->CR & DMA_SxCR_EN);
-  RCC->AHB1ENR |= RCC_AHB1ENR_DMA2EN;
-  DMA2_Stream2->CR |= (0b100 << 25); //set Ch4
-  DMA2_Stream2->CR |= DMA_SxCR_CIRC; //enable circular mode
-  DMA2_Stream2->CR &= ~DMA_SxCR_DIR; //be sure that we transfer from peripherial->memory
-  DMA2_Stream2->CR &= ~DMA_SxCR_MSIZE; //be sure to transfer byte
-  DMA2_Stream2->CR &= ~DMA_SxCR_PSIZE; //be sure to transfer byte
-  DMA2_Stream2->CR |= DMA_SxCR_MINC; //circular mode with memory increment
-  DMA2_Stream2->CR |= DMA_SxCR_PL_1;
-  DMA2_Stream2->NDTR = CIRC_BUFF_SIZE_WORDS - 1; //no of data (bytes/h-words/words) to copy
-  DMA2_Stream2->M0AR = (u32)USART_buffer; //set memory address to write
-  DMA2_Stream2->PAR = (u32)&USART1->DR; //set peripherial data adress to adress of USART1
-  //DMA2_Stream2->CR |= DMA_SxCR_HTIE; //half-transfer interrupt enabled
-  DMA2_Stream2->CR |= DMA_SxCR_TCIE; //transfer complete interrupt enabled
-  USART1->CR3 |= USART_CR3_DMAR; //USART1 settings!
-  NVIC_EnableIRQ(DMA2_Stream2_IRQn);
-  DMA2_Stream2->CR |= DMA_SxCR_EN;
+  DMA2_setupDMAforUSART1withCircularMode();
 
   // NVIC_EnableIRQ(EXTI0_IRQn);
   // RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
