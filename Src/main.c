@@ -8,16 +8,26 @@
 volatile char USART_buffer[CIRC_BUFF_SIZE_WORDS] = {'\0'};
 //Interrupts
 
+typedef enum
+{
+	risingTrigger,
+	fallingTrigger,
+	risingAndFallingTrigger,
+	noOfTriggers,
+}triggerTypeE;
+
 /*
- * Konfiguracja przerwania zewnętrznego od pinu
- * EXTICR[x] gdzie x
- * 0 dla linii 0-3 (Rejestr EXTICR1)
- * 1 dla linii 4-7 (Rejestr EXTICR2)
- * 2 dla linii 8-11 (Rejestr EXTICR3)
- * 3 dla linii 12-15 (Rejestr EXTICR4)
+ * Configuration of EXTI. The register EXTICR[x] is set, where x:
+ * 0 for lines 0-3 (Rejestr EXTICR1)
+ * 1 for lines 4-7 (Rejestr EXTICR2)
+ * 2 for lines 8-11 (Rejestr EXTICR3)
+ * 3 for lines 12-15 (Rejestr EXTICR4)
+ * Also rising/faling/risingAndFalling edge trigger is set.
+ * Dont forget about enable proper IRQ and write IRQHandler.
 */
 
-/* static void EXTI_lineConfig(GPIOPortE EXTI_PortSourceGPIOx, uint8_t EXTI_PinSourcex)
+static void EXTI_lineConfig(GPIOPortE EXTI_PortSourceGPIOx, uint8_t EXTI_PinSourcex,
+		triggerTypeE triggerType)
 {
   if(RCC_APB2ENR_SYSCFGEN != (RCC->APB2ENR & RCC_APB2ENR_SYSCFGEN))
   {
@@ -29,15 +39,28 @@ volatile char USART_buffer[CIRC_BUFF_SIZE_WORDS] = {'\0'};
   SYSCFG->EXTICR[EXTI_PinSourcex >> 0x02] &= ~tmp;
   SYSCFG->EXTICR[EXTI_PinSourcex >> 0x02] |= (((uint32_t)EXTI_PortSourceGPIOx) <<
     (0x04 * (EXTI_PinSourcex & (uint8_t)0x03)));
+
+  if(triggerType == risingTrigger || triggerType == risingAndFallingTrigger) 
+  {
+  EXTI->RTSR |= (1UL) << EXTI_PinSourcex;
+  }
+
+  if(triggerType == fallingTrigger || triggerType == risingAndFallingTrigger)
+  {
+  EXTI->FTSR |= (1UL) << EXTI_PinSourcex;
+  }
+
+  EXTI->IMR |= (1UL) << EXTI_PinSourcex;
 }
 
 void EXTI0_IRQHandler(void)
 {
   if ((EXTI->PR & EXTI_PR_PR0) != 0)
   {
-     USART_sendCharacter('a');
+     USART_sendString(USART1, "Interrupt working!\r\n");
+	 EXTI->PR |= EXTI_PR_PR0;
   }
-} */
+}
 
 
 void DMA2_Stream2_IRQHandler(void)
@@ -63,7 +86,7 @@ void DMA2_Stream7_IRQHandler(void) /* */
 
 void simpleTaskFunction(void *pvParameters)
 {
-  while(TRUE) 
+  while(TRUE)
   {
     USART_sendString(USART1, "1st Task in progress\r\n");
 	vTaskDelay(1000/portTICK_RATE_MS);
@@ -73,6 +96,7 @@ void simpleTaskFunction(void *pvParameters)
 int main(void)
 {
   SystemInit();
+  /* USART PIN CONFIG */
   GPIO_clock(B);
   GPIO_setupPin(GPIOB, 7, GPIO_Alternate, GPIO_Output_PP,
   GPIO_PULL_NO, GPIO_Speed_50MHz);
@@ -83,15 +107,12 @@ int main(void)
   USART_setupIrqAll(USART1, 84000000UL, 9600);
   /* DMA2 Steam 2 (for USART1 RX) & 7 (for USART1 TX) */
   DMA2_setupDMAforUSART1withCircularMode();
+  /* EXTI0 config */
+  EXTI_lineConfig(A, 0, risingAndFallingTrigger);
+  NVIC_EnableIRQ(EXTI0_IRQn);
+  /* SPI PIN CONFIG */
   xTaskCreate(simpleTaskFunction, "simpleTaskFunction", 50, NULL, 1, NULL);
   vTaskStartScheduler();
-  // NVIC_EnableIRQ(EXTI0_IRQn);
-  // RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
-  // EXTI_lineConfig(A, 0);
-  // //napisz setter do EXTI; zrozum działanie EXTI dokładnie, oddziel libkę z GPIO, zrób opisy
-  // EXTI->RTSR = EXTI_RTSR_TR0;
-  // EXTI->FTSR = EXTI_FTSR_TR0;
-  // EXTI->IMR = EXTI_IMR_MR0;
   while(1)
   {
   }
