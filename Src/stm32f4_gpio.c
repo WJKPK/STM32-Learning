@@ -24,11 +24,11 @@ void GPIO_writeBit(GPIO_TypeDef* GPIOx, GPIO_Pin pin, BOOL bitValue)
 {
   if (bitValue != FALSE)
   {
-    GPIOx->BSRRL = (0x01 << pin);
+    GPIOx->BSRRL |= (0x01 << pin);
   }
   else
   {
-    GPIOx->BSRRH = (0x01 << pin);
+    GPIOx->BSRRH |= (0x01 << pin);
   }
 }
 

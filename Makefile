@@ -19,7 +19,7 @@ TARGET = STM32-Template
 # building variables
 ######################################
 # debug build?
-DEBUG = 0
+DEBUG = 1
 # optimization
 OPT = -O2
 ifeq ($(DEBUG), 1)

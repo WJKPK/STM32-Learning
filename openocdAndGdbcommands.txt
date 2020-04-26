@@ -1,0 +1,7 @@
+goocd && openofd -f stm32f4discovery.cfg;
+gostm && gdb-multiarch /build/*.elf
+
+openocd:
+target remote localhost:3333
+monitor reset halt
+load

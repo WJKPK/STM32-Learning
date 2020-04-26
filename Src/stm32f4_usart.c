@@ -17,6 +17,35 @@
   }
 }*/
 
+#define INT_DIGITS 4 /* enough for 8integer */
+
+char *embeddItoa(int8_t i)
+{
+  /* Room for INT_DIGITS digits, - and '\0' */
+  static char buf[INT_DIGITS + 2];
+  char *p = buf + INT_DIGITS + 1;	/* points to terminating '\0' */
+  if (i >= 0)
+  {
+    do
+	{
+      *--p = '0' + (i % 10);
+      i /= 10;
+    } while (i != 0);
+    return p;
+  }
+  else
+  {			/* i < 0 */
+    do
+	{
+      *--p = '0' - (i % 10);
+      i /= 10;
+    } while (i != 0);
+    *--p = '-';
+  }
+  return p;
+}
+
+
 static u16 USART_baudRateCalc(USART_TypeDef* USARTx, u32 APBfrequency, u32 baudRate)
  {
     u32 tmpreg = 0;

@@ -3,17 +3,17 @@
 #include"stm32f4_gpio.h"
 #include"stm32f4_usart.h"
 #include"stm32f4_dma.h"
-
+#include"lis302dl.h"
 
 volatile char USART_buffer[CIRC_BUFF_SIZE_WORDS] = {'\0'};
 //Interrupts
 
 typedef enum
 {
-	risingTrigger,
-	fallingTrigger,
-	risingAndFallingTrigger,
-	noOfTriggers,
+  risingTrigger,
+  fallingTrigger,
+  risingAndFallingTrigger,
+  noOfTriggers,
 }triggerTypeE;
 
 /*
@@ -40,7 +40,7 @@ static void EXTI_lineConfig(GPIOPortE EXTI_PortSourceGPIOx, uint8_t EXTI_PinSour
   SYSCFG->EXTICR[EXTI_PinSourcex >> 0x02] |= (((uint32_t)EXTI_PortSourceGPIOx) <<
     (0x04 * (EXTI_PinSourcex & (uint8_t)0x03)));
 
-  if(triggerType == risingTrigger || triggerType == risingAndFallingTrigger) 
+  if(triggerType == risingTrigger || triggerType == risingAndFallingTrigger)
   {
   EXTI->RTSR |= (1UL) << EXTI_PinSourcex;
   }
@@ -74,6 +74,7 @@ void DMA2_Stream2_IRQHandler(void)
     //USART1->CR1 |= USART_CR1_TXEIE; //set USART TX flag to send data via USART1 TX
   }
 }
+
 void DMA2_Stream7_IRQHandler(void) /* */
 {
   if (DMA2->HISR & DMA_HISR_TCIF7)
@@ -84,34 +85,127 @@ void DMA2_Stream7_IRQHandler(void) /* */
   }
 }
 
-void simpleTaskFunction(void *pvParameters)
+/* Read/Write command */
+#define READWRITE_CMD              ((uint16_t)0x8000)
+/* Multiple byte read/write command */
+#define MULTIPLEBYTE_CMD           ((uint16_t)0x4000)
+/* Dummy Byte Send by the SPI Master device in order to generate the Clock to the Slave device */
+#define DUMMY_BYTE                 ((uint16_t)0x0000)
+
+int8_t SPI_sendFrame(SPI_TypeDef* SPIx, uint8_t frame)
+{
+  GPIO_writeBit(GPIOE, 3, FALSE);
+  SPIx->DR = frame;
+  while(!(SPIx->SR & SPI_SR_TXE));
+  while(!(SPIx->SR & SPI_SR_RXNE));
+  GPIO_writeBit(GPIOE, 3, TRUE);
+  return SPIx->DR;
+  }
+
+int8_t SPI_readRegister(SPI_TypeDef* SPIx, uint8_t adress)
+{
+  GPIO_writeBit(GPIOE, 3, FALSE);
+  // bit 15 is 1 for read for lis302dl
+  uint16_t frame = 0;
+  frame |= READWRITE_CMD;
+  frame |= (uint16_t)(adress << 8);
+  // Send data
+  SPI1->DR = frame;
+  // wait until tx buf is empty (TXE flag)
+  while (!(SPI1->SR & SPI_SR_TXE));
+  // wait until rx buf is not empty (RXNE flag)
+  while (!(SPI1->SR & SPI_SR_RXNE));
+
+  GPIO_writeBit(GPIOE, 3, TRUE);
+  return (int8_t)SPI1->DR;
+}
+
+void SPI_writeRegister(SPI_TypeDef* SPIx, uint8_t adress, uint8_t data)
+{
+  GPIO_writeBit(GPIOE, 3, FALSE);
+  // bit 15 is 0 for write for lis302dl
+  uint32_t frame = 0;
+  frame |= data;
+  frame |= (uint16_t)(adress << 8);
+  // Send data
+  SPI1->DR = frame;
+  // wait until transmit is done (TXE flag)
+  while (!(SPI1->SR & SPI_SR_TXE));
+  // wait until rx buf is not empty (RXNE flag)
+  while (!(SPI1->SR & SPI_SR_RXNE));
+
+  GPIO_writeBit(GPIOE, 3, TRUE);
+  (void)SPI1->DR; // dummy read
+}
+
+void readDataFromAccelerometer(void *pvParameters)
 {
   while(TRUE)
   {
-    USART_sendString(USART1, "1st Task in progress\r\n");
-	vTaskDelay(1000/portTICK_RATE_MS);
+	USART_sendString(USART1, embeddItoa(SPI_readRegister(SPI1, LIS302_REG_OUT_X)));
+	USART_sendString(USART1, "\t");
+	USART_sendString(USART1, embeddItoa(SPI_readRegister(SPI1, LIS302_REG_OUT_Y)));
+    USART_sendString(USART1, "\t");
+	USART_sendString(USART1, embeddItoa(SPI_readRegister(SPI1, LIS302_REG_OUT_Y)));
+	USART_sendString(USART1, "\r\n");
+
+	vTaskDelay(100/portTICK_RATE_MS);
   }
 }
 
 int main(void)
 {
   SystemInit();
-  /* USART PIN CONFIG */
   GPIO_clock(B);
+  GPIO_clock(A);
+  GPIO_clock(E);
+
+ /* EXTI and USART1 pins setings */
+  GPIO_setupPin(GPIOA, 0, GPIO_Input, GPIO_Output_PP,
+  GPIO_PULL_NO, GPIO_Speed_50MHz);
   GPIO_setupPin(GPIOB, 7, GPIO_Alternate, GPIO_Output_PP,
   GPIO_PULL_NO, GPIO_Speed_50MHz);
   GPIO_setupPin(GPIOB, 6, GPIO_Alternate, GPIO_Output_PP,
   GPIO_PULL_NO, GPIO_Speed_50MHz);
   GPIO_AFConfig(GPIOB, 6, GPIO_AF_USART1);
   GPIO_AFConfig(GPIOB, 7, GPIO_AF_USART1);
+
   USART_setupIrqAll(USART1, 84000000UL, 9600);
   /* DMA2 Steam 2 (for USART1 RX) & 7 (for USART1 TX) */
   DMA2_setupDMAforUSART1withCircularMode();
+
   /* EXTI0 config */
-  EXTI_lineConfig(A, 0, risingAndFallingTrigger);
+  EXTI_lineConfig(A, 0, fallingTrigger);
   NVIC_EnableIRQ(EXTI0_IRQn);
+  NVIC_SetPriority(EXTI0_IRQn, 3);
+
+  /* SPI pinout setup */
+  GPIO_setupPin(GPIOA, 6, GPIO_Alternate, GPIO_Output_PP,
+  GPIO_PULL_NO, GPIO_Speed_50MHz);
+  GPIO_setupPin(GPIOA, 7, GPIO_Alternate, GPIO_Output_PP,
+  GPIO_PULL_NO, GPIO_Speed_50MHz);
+  GPIO_setupPin(GPIOE, 3, GPIO_Output, GPIO_Output_PP,
+  GPIO_PULL_NO, GPIO_Speed_50MHz);
+  GPIO_setupPin(GPIOA, 5, GPIO_Alternate, GPIO_Output_PP,
+  GPIO_PULL_NO, GPIO_Speed_50MHz);
+  GPIO_writeBit(GPIOE, 3, TRUE);
+  GPIO_AFConfig(GPIOA, 5, GPIO_AF_SPI1);
+  GPIO_AFConfig(GPIOA, 6, GPIO_AF_SPI1);
+  GPIO_AFConfig(GPIOA, 7, GPIO_AF_SPI1);
+
   /* SPI PIN CONFIG */
-  xTaskCreate(simpleTaskFunction, "simpleTaskFunction", 50, NULL, 1, NULL);
+  RCC->APB2ENR |= RCC_APB2ENR_SPI1EN;
+  SPI1->CR1 = 0;
+  SPI1->CR1 &= ~SPI_CR1_CPHA; //frist clock transition is the first data capture
+  SPI1->CR1 &= ~SPI_CR1_CPOL; //set to 1 when idle
+  SPI1->CR1 |= SPI_CR1_DFF;
+  SPI1->CR1 |= SPI_CR1_MSTR; //master config
+  SPI1->CR1 |= SPI_CR1_SSM | SPI_CR1_SSI | SPI_CR1_BR_1 | SPI_CR1_BR_0;
+  SPI1->CR1 |= SPI_CR1_SPE;
+  SPI_writeRegister(SPI1, 0x21, 0x40);
+  SPI_writeRegister(SPI1, 0x20, 0x47);
+
+  xTaskCreate(readDataFromAccelerometer, "readDataFromLIS302LD", 50, NULL, 1, NULL);
   vTaskStartScheduler();
   while(1)
   {
